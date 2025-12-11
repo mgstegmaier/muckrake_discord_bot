@@ -13,6 +13,7 @@ import discord
 
 from app.config import Config, ServerConfig
 from app.commands.image_commands import ImageCommands, setup_commands, sync_commands
+from app.utils.permissions import check_permission
 
 
 @pytest.fixture
@@ -30,6 +31,7 @@ def mock_bot():
 def mock_config():
     """Create a mock Config with test server configurations."""
     config = Mock(spec=Config)
+    config.base_image_url = "https://heckatron.xyz/images/"
 
     # Server 1: Two commands
     server1 = ServerConfig(
@@ -70,22 +72,107 @@ class TestImageCommandsCog:
         assert cog.config == mock_config
 
     @pytest.mark.asyncio
-    async def test_handle_image_command_valid(self, mock_bot, mock_config):
-        """Test that _handle_image_command responds to valid commands."""
+    async def test_handle_image_command_authorized_user_gets_embed(self, mock_bot, mock_config):
+        """Test that authorized user gets embed response with image."""
         cog = ImageCommands(mock_bot, mock_config)
 
-        # Create mock interaction
+        # Create mock interaction with authorized user
         interaction = AsyncMock(spec=discord.Interaction)
         interaction.guild_id = 123456789
+        interaction.user = Mock()
+        interaction.user.id = 12345
+        # Create role mock with proper name attribute
+        admin_role = Mock()
+        admin_role.name = "Admin"
+        interaction.user.roles = [admin_role]
         interaction.response.send_message = AsyncMock()
 
         # Call handler with valid image key
         await cog._handle_image_command(interaction, "tapsign")
 
-        # Verify response was sent
+        # Verify embed was sent
         interaction.response.send_message.assert_called_once()
-        args = interaction.response.send_message.call_args[0]
-        assert "tapsign" in args[0]
+        call_kwargs = interaction.response.send_message.call_args[1]
+
+        assert "embed" in call_kwargs
+        embed = call_kwargs["embed"]
+        assert isinstance(embed, discord.Embed)
+        assert embed.title == "Tap Sign"
+        assert embed.image.url == "https://heckatron.xyz/images/tapsign.jpg"
+
+    @pytest.mark.asyncio
+    async def test_handle_image_command_unauthorized_user_denied(self, mock_bot, mock_config):
+        """Test that unauthorized user gets ephemeral permission denied message."""
+        cog = ImageCommands(mock_bot, mock_config)
+
+        # Create mock interaction with unauthorized user (no Admin role)
+        interaction = AsyncMock(spec=discord.Interaction)
+        interaction.guild_id = 123456789
+        interaction.user = Mock()
+        interaction.user.id = 12345
+        # Create role mock with non-admin role
+        member_role = Mock()
+        member_role.name = "Member"
+        interaction.user.roles = [member_role]
+        interaction.response.send_message = AsyncMock()
+
+        # Call handler
+        await cog._handle_image_command(interaction, "tapsign")
+
+        # Verify permission denied message
+        interaction.response.send_message.assert_called_once()
+        call_args = interaction.response.send_message.call_args
+        message = call_args[0][0]
+        kwargs = call_args[1]
+
+        assert "don't have permission" in message
+        assert kwargs.get("ephemeral") is True
+
+    @pytest.mark.asyncio
+    async def test_handle_image_command_embed_has_correct_title_and_url(self, mock_bot, mock_config):
+        """Test that embed has correct title and image URL from config."""
+        cog = ImageCommands(mock_bot, mock_config)
+
+        # Create mock interaction with authorized user
+        interaction = AsyncMock(spec=discord.Interaction)
+        interaction.guild_id = 123456789
+        interaction.user = Mock()
+        interaction.user.id = 12345
+        # Create role mock with proper name attribute
+        admin_role = Mock()
+        admin_role.name = "Admin"
+        interaction.user.roles = [admin_role]
+        interaction.response.send_message = AsyncMock()
+
+        # Test heartbreaking command
+        await cog._handle_image_command(interaction, "heartbreaking")
+
+        # Verify embed details
+        call_kwargs = interaction.response.send_message.call_args[1]
+        embed = call_kwargs["embed"]
+
+        assert embed.title == "Heartbreaking"
+        assert embed.image.url == "https://heckatron.xyz/images/heartbreaking.jpg"
+
+    @pytest.mark.asyncio
+    @patch('app.commands.image_commands.check_permission')
+    async def test_handle_image_command_checks_permission_before_posting(self, mock_check_permission, mock_bot, mock_config):
+        """Test that permission check is called before sending response."""
+        mock_check_permission.return_value = True
+        cog = ImageCommands(mock_bot, mock_config)
+
+        # Create mock interaction
+        interaction = AsyncMock(spec=discord.Interaction)
+        interaction.guild_id = 123456789
+        interaction.user = Mock()
+        interaction.user.id = 12345
+        interaction.response.send_message = AsyncMock()
+
+        # Call handler
+        await cog._handle_image_command(interaction, "tapsign")
+
+        # Verify permission check was called
+        mock_check_permission.assert_called_once_with(interaction, mock_config)
 
     @pytest.mark.asyncio
     async def test_handle_image_command_invalid_server(self, mock_bot, mock_config):
@@ -95,15 +182,23 @@ class TestImageCommandsCog:
         # Create mock interaction with unknown server
         interaction = AsyncMock(spec=discord.Interaction)
         interaction.guild_id = 999999999
+        interaction.user = Mock()
+        # Create role mock with proper name attribute
+        admin_role = Mock()
+        admin_role.name = "Admin"
+        interaction.user.roles = [admin_role]
         interaction.response.send_message = AsyncMock()
 
         # Call handler
         await cog._handle_image_command(interaction, "tapsign")
 
-        # Verify error response
+        # Verify permission denied (server not configured means no permission)
         interaction.response.send_message.assert_called_once()
-        args, kwargs = interaction.response.send_message.call_args
-        assert "not configured" in args[0]
+        call_args = interaction.response.send_message.call_args
+        message = call_args[0][0]
+        kwargs = call_args[1]
+
+        assert "don't have permission" in message
         assert kwargs.get("ephemeral") is True
 
     @pytest.mark.asyncio
@@ -114,15 +209,23 @@ class TestImageCommandsCog:
         # Create mock interaction with valid server, invalid image
         interaction = AsyncMock(spec=discord.Interaction)
         interaction.guild_id = 123456789
+        interaction.user = Mock()
+        # Create role mock with proper name attribute
+        admin_role = Mock()
+        admin_role.name = "Admin"
+        interaction.user.roles = [admin_role]
         interaction.response.send_message = AsyncMock()
 
-        # Call handler with invalid image key
+        # Call handler with invalid image key (even with permission, image doesn't exist)
         await cog._handle_image_command(interaction, "unknown_image")
 
-        # Verify error response
+        # Verify permission denied (image not found means can't post)
         interaction.response.send_message.assert_called_once()
-        args, kwargs = interaction.response.send_message.call_args
-        assert "not configured" in args[0]
+        call_args = interaction.response.send_message.call_args
+        message = call_args[0][0]
+        kwargs = call_args[1]
+
+        assert "don't have permission" in message
         assert kwargs.get("ephemeral") is True
 
 

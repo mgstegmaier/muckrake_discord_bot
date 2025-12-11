@@ -26,6 +26,7 @@ from discord import app_commands
 import logging
 
 from app.config import Config
+from app.utils.permissions import check_permission
 
 logger = logging.getLogger("app.commands.image")
 
@@ -60,11 +61,14 @@ class ImageCommands(commands.Cog):
         Generic handler for all image commands.
 
         This method is called by dynamically registered slash commands.
-        It validates that the command is configured for the server and
-        sends an acknowledgment response.
+        It checks permissions, validates the command configuration, and
+        posts the image as a Discord embed if authorized.
 
-        NOTE: Full image posting implementation is in REQ-007. For now,
-        this just acknowledges receipt of the command.
+        Permission Flow:
+        1. Check if user has permission via check_permission()
+        2. If denied: Send ephemeral "permission denied" message
+        3. If allowed: Validate image exists in server config
+        4. Create and send Discord embed with image
 
         Args:
             interaction: Discord interaction from slash command
@@ -73,22 +77,41 @@ class ImageCommands(commands.Cog):
         server_id = str(interaction.guild_id)
         server_config = self.config.get_server_config(server_id)
 
-        if server_config and image_key in server_config.images:
-            logger.info(
-                f"Image command '{image_key}' received from "
-                f"user {interaction.user.id} in server {server_id}"
-            )
+        # Check permissions first
+        if not check_permission(interaction, self.config):
             await interaction.response.send_message(
-                f"Image command '{image_key}' received!"
-            )
-        else:
-            logger.warning(
-                f"Command '{image_key}' not configured for server {server_id}"
-            )
-            await interaction.response.send_message(
-                "Command not configured for this server",
+                "You don't have permission to use this command",
                 ephemeral=True
             )
+            return
+
+        # Verify image exists in server config
+        if not server_config or image_key not in server_config.images:
+            # This shouldn't happen since commands are registered from config,
+            # but handle it gracefully just in case
+            await interaction.response.send_message(
+                "You don't have permission to use this command",
+                ephemeral=True
+            )
+            return
+
+        # Get image data
+        image_data = server_config.images[image_key]
+        title = image_data["title"]
+        image_url = self.config.base_image_url + image_data["url"]
+
+        # Create embed with image
+        embed = discord.Embed(title=title)
+        embed.set_image(url=image_url)
+
+        # Send embed
+        await interaction.response.send_message(embed=embed)
+
+        # Log successful command execution
+        logger.info(
+            f"Image command '{image_key}' executed by "
+            f"user {interaction.user.id} in server {server_id}"
+        )
 
 
 async def setup_commands(bot: commands.Bot, config: Config):
