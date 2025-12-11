@@ -15,6 +15,7 @@ Key Features:
 import sys
 import discord
 from discord.ext import commands
+from discord import app_commands
 from app.config import Config, ConfigError
 from app.logging_setup import setup_logging
 
@@ -53,6 +54,80 @@ def create_bot_instance():
         """
         logger.info(f"Logged in as {bot.user.name} ({bot.user.id})")
         logger.info(f"Connected to {len(bot.guilds)} servers")
+
+    # Register global error handler for slash commands
+    @bot.tree.error
+    async def on_app_command_error(
+        interaction: discord.Interaction,
+        error: app_commands.AppCommandError
+    ):
+        """
+        Global error handler for all slash commands.
+
+        Handles different error types appropriately:
+        - Forbidden: Bot lacks permissions
+        - NotFound: Message/channel deleted (logged, no response)
+        - CommandOnCooldown: Command used too quickly
+        - MissingPermissions: User lacks permissions
+        - General exceptions: Unexpected errors
+
+        All error messages are ephemeral (visible only to user).
+        Errors are logged with full context including user ID, server ID, and command name.
+
+        Args:
+            interaction: The interaction that triggered the error
+            error: The error that occurred
+        """
+        try:
+            # Extract context for logging
+            user_id = interaction.user.id if interaction.user else "unknown"
+            guild_id = interaction.guild_id if interaction.guild_id else "DM"
+            command_name = interaction.command.name if interaction.command else "unknown"
+
+            # Handle specific error types
+            if isinstance(error, discord.errors.Forbidden):
+                # Bot doesn't have permission to perform action
+                logger.warning(
+                    f"Permission denied for command '{command_name}' "
+                    f"(user: {user_id}, guild: {guild_id}): {error}"
+                )
+                message = "I don't have permission to do that in this server."
+
+            elif isinstance(error, discord.errors.NotFound):
+                # Message or channel was deleted - log but don't respond
+                logger.warning(
+                    f"Resource not found for command '{command_name}' "
+                    f"(user: {user_id}, guild: {guild_id}): {error}"
+                )
+                return  # Don't send message to user
+
+            elif isinstance(error, app_commands.CommandOnCooldown):
+                # Command used too quickly
+                message = "This command is on cooldown. Try again later."
+
+            elif isinstance(error, app_commands.MissingPermissions):
+                # User doesn't have permission
+                message = "You don't have permission to use this command."
+
+            else:
+                # Unexpected error - log with full traceback
+                logger.error(
+                    f"Unexpected error in command '{command_name}' "
+                    f"(user: {user_id}, guild: {guild_id}): {error}",
+                    exc_info=True
+                )
+                message = "Something went wrong. Please try again later."
+
+            # Send error message to user
+            # Use followup if interaction already responded, otherwise use response
+            if interaction.response.is_done():
+                await interaction.followup.send(message, ephemeral=True)
+            else:
+                await interaction.response.send_message(message, ephemeral=True)
+
+        except Exception as e:
+            # Error handler itself failed - log but don't crash bot
+            logger.error(f"Error in error handler: {e}", exc_info=True)
 
     return config, logger, bot
 
