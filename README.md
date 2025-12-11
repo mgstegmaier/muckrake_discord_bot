@@ -232,96 +232,269 @@ You can add new image commands **without writing any code** by editing `config/s
 
 For advanced functionality beyond simple image posting, you can create custom plugins.
 
-### Plugin Interface
+### Plugin System Overview
 
-Plugins are Python modules placed in `app/plugins/` that extend the bot with custom commands and behavior.
+The bot includes a plugin system that automatically discovers and loads Python modules from `app/plugins/`. This allows you to extend the bot with custom commands, event handlers, and behavior without modifying the core bot code.
 
-**Basic Plugin Structure**:
+**Key Features**:
+- Automatic plugin discovery and loading at bot startup
+- Graceful error handling (broken plugins won't crash the bot)
+- Support for both simple function-based and class-based plugins
+- Access to full discord.py API and bot instance
+
+### Creating a Plugin
+
+Plugins are Python modules placed in `app/plugins/` with a required `setup()` function.
+
+#### Simple Function-Based Plugin
+
+**File**: `app/plugins/hello_plugin.py`
+
 ```python
-# app/plugins/my_plugin.py
+"""Simple hello world plugin."""
 
 import discord
 from discord.ext import commands
 from discord import app_commands
 import logging
 
-logger = logging.getLogger("app.plugins.my_plugin")
+logger = logging.getLogger("app.plugins.hello")
 
 
-class MyPlugin(commands.Cog):
-    """Custom plugin for advanced functionality."""
-
-    def __init__(self, bot: commands.Bot, config):
-        self.bot = bot
-        self.config = config
-        logger.info("MyPlugin loaded")
-
-    @app_commands.command(name="mycommand", description="My custom command")
-    async def my_command(self, interaction: discord.Interaction):
-        """Handle /mycommand slash command."""
-        await interaction.response.send_message("Hello from my plugin!")
-
-
-async def setup(bot: commands.Bot, config):
+async def setup(bot: commands.Bot) -> str:
     """
-    Plugin setup function called by the bot loader.
+    Plugin setup function called by bot loader.
 
     Args:
         bot: The Discord bot instance
-        config: Configuration object
+
+    Returns:
+        Plugin name for logging (optional)
     """
-    await bot.add_cog(MyPlugin(bot, config))
-    logger.info("MyPlugin setup complete")
+    @bot.tree.command(name="hello", description="Say hello")
+    async def hello_command(interaction: discord.Interaction):
+        """Simple hello command."""
+        await interaction.response.send_message(
+            f"Hello, {interaction.user.mention}!",
+            ephemeral=True
+        )
+
+    logger.info("Hello plugin loaded")
+    return "hello_plugin"
+```
+
+#### Class-Based Plugin (Advanced)
+
+For more structured plugins, use the `Plugin` base class:
+
+**File**: `app/plugins/advanced_plugin.py`
+
+```python
+"""Advanced plugin using Plugin base class."""
+
+from app.plugins import Plugin
+import discord
+from discord.ext import commands
+from discord import app_commands
+import logging
+
+logger = logging.getLogger("app.plugins.advanced")
+
+
+class AdvancedPlugin(Plugin):
+    """Example of a structured plugin using the Plugin base class."""
+
+    name = "advanced_plugin"
+    description = "Demonstrates advanced plugin features"
+
+    async def setup(self, bot: commands.Bot):
+        """Initialize the plugin."""
+
+        @bot.tree.command(name="stats", description="Show bot statistics")
+        async def stats_command(interaction: discord.Interaction):
+            """Show bot stats."""
+            guild_count = len(bot.guilds)
+            await interaction.response.send_message(
+                f"I'm in {guild_count} servers!",
+                ephemeral=True
+            )
+
+        logger.info(f"{self.name} initialized")
+
+
+async def setup(bot: commands.Bot) -> str:
+    """Setup function using Plugin class."""
+    plugin = AdvancedPlugin()
+    await plugin.setup(bot)
+    return plugin.name
 ```
 
 ### Plugin Loading
 
-**Automatic Loading** (Not yet implemented):
-- Plugins in `app/plugins/` with a `setup()` function will be auto-loaded at bot startup
+**Automatic Loading**:
+- Place your plugin file in `app/plugins/`
+- Ensure it has a `.py` extension and a `setup()` function
+- Plugin loads automatically on bot startup
 
-**Manual Loading** (Current approach):
-- Import and register plugins in `app/bot.py`:
-  ```python
-  from app.plugins.my_plugin import setup as my_plugin_setup
+**Disabled Plugins**:
+- Files starting with underscore (`_example_plugin.py`) are ignored
+- See `app/plugins/_example_plugin.py` for a comprehensive example
+- Rename to enable (e.g., `example_plugin.py`)
 
-  # In create_bot_instance():
-  await my_plugin_setup(bot, config)
-  ```
+**Plugin Discovery Rules**:
+- Must be a `.py` file in `app/plugins/`
+- Must NOT be `__init__.py`
+- Must NOT start with underscore (`_`)
+- Must have an async `setup(bot)` function
+
+### Plugin Lifecycle
+
+1. **Discovery**: Bot scans `app/plugins/` for valid plugin files
+2. **Import**: Each plugin module is imported
+3. **Setup**: Plugin's `setup()` function is called with bot instance
+4. **Registration**: Plugin commands/handlers are registered with Discord
+5. **Logging**: Success/failure logged for each plugin
+
+### Example: Plugin with Parameters
+
+```python
+"""Plugin demonstrating command parameters."""
+
+import discord
+from discord import app_commands
+from discord.ext import commands
+import logging
+
+logger = logging.getLogger("app.plugins.greet")
+
+
+async def setup(bot: commands.Bot) -> str:
+    """Setup greeting command with parameters."""
+
+    @bot.tree.command(name="greet", description="Greet someone")
+    @app_commands.describe(
+        name="The person to greet",
+        style="Greeting style"
+    )
+    @app_commands.choices(style=[
+        app_commands.Choice(name="Friendly", value="friendly"),
+        app_commands.Choice(name="Formal", value="formal"),
+        app_commands.Choice(name="Casual", value="casual")
+    ])
+    async def greet_command(
+        interaction: discord.Interaction,
+        name: str,
+        style: str = "friendly"
+    ):
+        """Greet someone with different styles."""
+        greetings = {
+            "friendly": f"Hey there, {name}! How's it going?",
+            "formal": f"Good day, {name}. I hope you are well.",
+            "casual": f"Yo {name}, what's up?"
+        }
+
+        message = greetings.get(style, f"Hello, {name}!")
+        await interaction.response.send_message(message)
+
+    logger.info("Greet plugin loaded")
+    return "greet_plugin"
+```
 
 ### Plugin Best Practices
 
-1. **Use the Cog pattern**: Organize related commands in a `commands.Cog` subclass
-2. **Leverage config**: Access `self.config` for server-specific settings
-3. **Check permissions**: Use `app.utils.permissions.check_permission()` for role-based access
-4. **Log activity**: Use structured logging with `logging.getLogger()`
-5. **Handle errors**: Wrap command logic in try/except and send user-friendly error messages
-6. **Defer long operations**: Use `await interaction.response.defer()` for commands taking >3 seconds
+1. **Return plugin name**: Have `setup()` return a string for better logging
+2. **Use structured logging**: Use `logging.getLogger("app.plugins.yourplugin")`
+3. **Handle errors gracefully**: Wrap risky operations in try/except
+4. **Document your plugin**: Add module docstrings and command descriptions
+5. **Test before deploying**: Errors in `setup()` are logged but plugin won't load
+6. **Avoid blocking operations**: Use async/await for I/O operations
+7. **Defer long tasks**: Use `await interaction.response.defer()` for >3 second operations
 
-### Example: Role-Protected Plugin Command
+### Example: Plugin with Error Handling
 
 ```python
-from app.utils.permissions import check_permission
+"""Plugin with robust error handling."""
 
-@app_commands.command(name="admin_only", description="Admin-only command")
-async def admin_command(self, interaction: discord.Interaction):
-    """Command that requires specific roles."""
-    # Check if user has permission
-    has_permission = await check_permission(
-        interaction,
-        self.config,
-        interaction.guild_id
-    )
+import discord
+from discord.ext import commands
+import logging
+import aiohttp
 
-    if not has_permission:
-        await interaction.response.send_message(
-            "You don't have permission to use this command.",
-            ephemeral=True
-        )
-        return
+logger = logging.getLogger("app.plugins.weather")
 
-    # Execute privileged operation
-    await interaction.response.send_message("Admin operation complete!")
+
+async def setup(bot: commands.Bot) -> str:
+    """Setup weather command with error handling."""
+
+    @bot.tree.command(name="weather", description="Get weather info")
+    async def weather_command(interaction: discord.Interaction, city: str):
+        """Fetch weather data with proper error handling."""
+        try:
+            # Defer response for longer operation
+            await interaction.response.defer(ephemeral=True)
+
+            # Simulated API call (replace with real API)
+            async with aiohttp.ClientSession() as session:
+                # Your API call here
+                pass
+
+            await interaction.followup.send(f"Weather for {city}: Sunny!")
+
+        except aiohttp.ClientError as e:
+            logger.error(f"Weather API error: {e}")
+            await interaction.followup.send(
+                "Failed to fetch weather data. Try again later.",
+                ephemeral=True
+            )
+        except Exception as e:
+            logger.error(f"Unexpected error in weather command: {e}", exc_info=True)
+            await interaction.followup.send(
+                "An error occurred. Please try again.",
+                ephemeral=True
+            )
+
+    logger.info("Weather plugin loaded")
+    return "weather_plugin"
 ```
+
+### Debugging Plugins
+
+**Enable debug logging**:
+```bash
+# In .env file
+LOG_LEVEL=DEBUG
+```
+
+**Check logs**:
+```bash
+# Docker
+docker logs -f worldmind-bot | grep plugin
+
+# Local
+# Logs will show:
+# INFO - Loading plugins...
+# INFO - Loaded plugin: your_plugin_name
+# ERROR - Failed to load plugin 'broken_plugin': <error details>
+```
+
+**Common Issues**:
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Plugin not loading | Missing `setup()` function | Add async `setup(bot)` function |
+| Import errors | Missing dependencies | Install required packages in `requirements.txt` |
+| Syntax errors | Python syntax errors | Check logs for traceback, fix syntax |
+| Commands not appearing | Plugin loaded but not synced | Restart bot, commands sync on startup |
+| Permission denied | Missing bot permissions | Ensure bot has required permissions in server |
+
+### Example Plugin Reference
+
+See `app/plugins/_example_plugin.py` for a comprehensive example showing:
+- Simple slash commands
+- Commands with parameters
+- Event handlers
+- Both function-based and class-based approaches
+- Proper documentation structure
 
 ## Project Structure
 
@@ -336,7 +509,8 @@ worldmind-bot/
 │   │   ├── __init__.py
 │   │   └── image_commands.py   # Dynamic slash command registration, image posting
 │   ├── plugins/
-│   │   └── __init__.py     # Plugin loading infrastructure (extensible)
+│   │   ├── __init__.py          # Plugin base class and loading infrastructure
+│   │   └── _example_plugin.py   # Example plugin (disabled by default)
 │   └── utils/
 │       ├── __init__.py
 │       └── permissions.py  # Role-based access control per server
@@ -346,7 +520,7 @@ worldmind-bot/
 ├── config/
 │   ├── .env.example        # Template for DISCORD_TOKEN, LOG_LEVEL, etc.
 │   └── servers.json.example # Template for server-specific configs
-├── tests/                  # pytest test suite with 70+ tests
+├── tests/                  # pytest test suite with 90+ tests
 │   ├── __init__.py
 │   ├── test_bot.py
 │   ├── test_config.py
@@ -354,7 +528,8 @@ worldmind-bot/
 │   ├── test_image_commands.py
 │   ├── test_error_handling.py
 │   ├── test_shutdown.py
-│   └── test_logging_setup.py
+│   ├── test_logging_setup.py
+│   └── test_plugins.py     # Plugin system tests
 ├── images/                 # Source images for hosting
 │   ├── tapsign.jpg
 │   └── heartbreaking.jpg

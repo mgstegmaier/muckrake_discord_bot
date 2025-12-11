@@ -21,6 +21,7 @@ from discord.ext import commands
 from discord import app_commands
 from app.config import Config, ConfigError
 from app.logging_setup import setup_logging
+from app.plugins import load_plugins
 
 
 def create_bot_instance():
@@ -53,10 +54,19 @@ def create_bot_instance():
         Event handler called when bot successfully connects to Discord.
 
         Logs bot username, ID, and number of connected servers.
+        Loads plugins from app/plugins/ directory.
         This provides confirmation that the bot is running and where it's active.
         """
         logger.info(f"Logged in as {bot.user.name} ({bot.user.id})")
         logger.info(f"Connected to {len(bot.guilds)} servers")
+
+        # Load plugins
+        logger.info("Loading plugins...")
+        loaded_plugins = await load_plugins(bot)
+        if loaded_plugins:
+            logger.info(f"Loaded {len(loaded_plugins)} plugin(s): {', '.join(loaded_plugins)}")
+        else:
+            logger.info("No plugins loaded")
 
     # Register global error handler for slash commands
     @bot.tree.error
