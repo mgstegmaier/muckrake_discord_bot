@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Pattern Hunter Shell Wrapper
+#
+# Convenient entry point for the pattern detection CLI.
+# This script can be symlinked to a PATH directory for global access.
+#
+# Usage:
+#   ./hunt-patterns hunt
+#   ./hunt-patterns hunt --auto
+#   ./hunt-patterns hunt --dry-run
+#   ./hunt-patterns collect --days 30
+#   ./hunt-patterns analyze
+#   ./hunt-patterns generate
+#   ./hunt-patterns apply --input proposals.json
+
+set -euo pipefail
+
+# Determine script directory (handles symlinks)
+if [ -L "$0" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0" || readlink "$0")")" && pwd)"
+else
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+fi
+
+# Path to the Python CLI module
+CLI_SCRIPT="${SCRIPT_DIR}/pattern-detector/cli.py"
+
+# Check if Python script exists
+if [ ! -f "$CLI_SCRIPT" ]; then
+    echo "ERROR: CLI script not found at: $CLI_SCRIPT" >&2
+    exit 1
+fi
+
+# Check if Python 3 is available
+if ! command -v python3 &> /dev/null; then
+    echo "ERROR: python3 is required but not found in PATH" >&2
+    exit 1
+fi
+
+# Execute the Python CLI with all arguments
+exec python3 "$CLI_SCRIPT" "$@"

@@ -1,0 +1,18 @@
+
+# ============================================================================
+# Agentic SDLC - Project-Local Directories
+# ============================================================================
+
+# .claude/ - Project-local Claude Code configuration
+.claude/
+
+# .sdlc/ - Project SDLC artifacts (ephemeral working files)
+.sdlc/plans/
+.sdlc/progress/
+.sdlc/completed/
+.sdlc/docs/
+
+# Preserve SDLC tests and scripts (optionally shareable)
+!.sdlc/tests/
+!.sdlc/scripts/
+!.sdlc/README.md

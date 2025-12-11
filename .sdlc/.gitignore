@@ -1,0 +1,20 @@
+# Ignore working files (ephemeral)
+plans/
+progress/
+completed/
+docs/
+
+# Preserve tests (optionally shareable)
+!tests/
+
+# Preserve scripts (team rituals)
+!scripts/
+
+# Ignore verification reports
+*verification*.md
+
+# Ignore session reports
+session-*.md
+
+# But preserve templates
+!README.md
