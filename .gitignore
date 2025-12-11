@@ -16,3 +16,75 @@
 !.sdlc/tests/
 !.sdlc/scripts/
 !.sdlc/README.md
+
+# ============================================================================
+# Python
+# ============================================================================
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+
+# ============================================================================
+# Environment and Configuration (SENSITIVE)
+# ============================================================================
+
+# Environment variables (contains DISCORD_TOKEN)
+.env
+config/.env
+
+# Server-specific configuration (contains role IDs, server IDs)
+config/servers.json
+
+# ============================================================================
+# IDE and Editor Files
+# ============================================================================
+
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ============================================================================
+# Logs and Runtime Files
+# ============================================================================
+
+*.log
+logs/

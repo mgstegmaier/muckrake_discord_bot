@@ -1,0 +1,8 @@
+# Discord Bot Core Dependencies
+discord.py>=2.3.0
+
+# Environment Configuration
+python-dotenv>=1.0.0
+
+# HTTP Client for Health Checks and API calls
+aiohttp>=3.8.0

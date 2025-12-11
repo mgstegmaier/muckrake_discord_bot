@@ -1,0 +1,28 @@
+{
+  "servers": {
+    "123456789012345678": {
+      "name": "Example Server",
+      "allowed_roles": ["Admin", "Moderator"],
+      "images": {
+        "tapsign": {
+          "url": "tapsign.jpg",
+          "title": "Tap Sign"
+        },
+        "heartbreaking": {
+          "url": "heartbreaking.jpg",
+          "title": "Heartbreaking"
+        }
+      }
+    },
+    "987654321098765432": {
+      "name": "Another Server",
+      "allowed_roles": ["Moderator", "Bot Manager"],
+      "images": {
+        "tapsign": {
+          "url": "tapsign.jpg",
+          "title": "Tap Sign"
+        }
+      }
+    }
+  }
+}
