@@ -10,9 +10,12 @@ Key Features:
 - Loads configuration from environment and servers.json
 - Implements on_ready event for connection logging
 - Handles ConfigError and Discord connection errors gracefully
+- Graceful shutdown handling for SIGTERM and SIGINT signals
 """
 
 import sys
+import signal
+import asyncio
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -132,6 +135,25 @@ def create_bot_instance():
     return config, logger, bot
 
 
+async def shutdown_handler(bot, logger):
+    """
+    Handle graceful shutdown of the Discord bot.
+
+    Logs shutdown initiation, closes the Discord connection cleanly,
+    and logs shutdown completion.
+
+    Args:
+        bot: The Discord bot instance to shut down
+        logger: Logger instance for shutdown messages
+
+    This function is called by signal handlers (SIGTERM, SIGINT) and ensures
+    the bot disconnects cleanly from Discord before the process exits.
+    """
+    logger.info("Shutting down bot...")
+    await bot.close()
+    logger.info("Shutdown complete")
+
+
 # Initialize bot on module import
 # Wrapped in try-except for graceful config error handling
 try:
@@ -148,9 +170,32 @@ def main():
 
     Attempts to connect to Discord using the configured token.
     Handles common connection errors with clear error messages.
+    Sets up signal handlers for graceful shutdown on SIGTERM and SIGINT.
 
     Exits with code 1 on unrecoverable errors.
     """
+    # Setup signal handlers for graceful shutdown
+    def signal_handler(sig, frame):
+        """Handle SIGTERM and SIGINT signals for graceful shutdown."""
+        logger.info(f"Received signal {sig}, initiating graceful shutdown...")
+        # Run the async shutdown handler in the event loop
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If loop is running, schedule shutdown
+                asyncio.create_task(shutdown_handler(bot, logger))
+            else:
+                # If loop is not running, run shutdown directly
+                loop.run_until_complete(shutdown_handler(bot, logger))
+        except Exception as e:
+            logger.error(f"Error during signal handler shutdown: {e}")
+        finally:
+            sys.exit(0)
+
+    # Register signal handlers
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+
     try:
         logger.info("Starting Discord bot...")
         bot.run(config.discord_token)
@@ -162,10 +207,18 @@ def main():
         sys.exit(1)
     except KeyboardInterrupt:
         logger.info("Bot shutdown requested via keyboard interrupt")
+        # Run shutdown handler for clean disconnect
+        try:
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(shutdown_handler(bot, logger))
+        except Exception as e:
+            logger.error(f"Error during shutdown: {e}")
         sys.exit(0)
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
         sys.exit(1)
+    finally:
+        logger.info("Bot process ending")
 
 
 if __name__ == "__main__":

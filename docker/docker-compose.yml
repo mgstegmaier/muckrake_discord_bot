@@ -1,0 +1,17 @@
+services:
+  worldmind-bot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: worldmind-bot
+    restart: unless-stopped
+    env_file:
+      - ../config/.env
+    volumes:
+      - ../config:/app/config:ro
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
