@@ -4,7 +4,7 @@ services:
       container_name: discordbot.heck
       restart: unless-stopped
       environment:
-        - DISCORD_TOKEN=MTQ0ODc4NDc2Njk3NDU2MjQ3Ng.GowQTp.cqxwluF-eKgnpVez8UphQE-xHzgBysEas2z-pQ
+        - DISCORD_TOKEN=${bot_token}
         - LOG_LEVEL=INFO
         - BASE_IMAGE_URL=https://images.heckatron.xyz
       volumes:
