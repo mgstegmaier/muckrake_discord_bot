@@ -22,6 +22,7 @@ from discord import app_commands
 from app.config import Config, ConfigError
 from app.logging_setup import setup_logging
 from app.plugins import load_plugins
+from app.commands.image_commands import ImageCommands, setup_commands, sync_commands
 
 
 def create_bot_instance():
@@ -54,11 +55,23 @@ def create_bot_instance():
         Event handler called when bot successfully connects to Discord.
 
         Logs bot username, ID, and number of connected servers.
+        Registers slash commands from config and syncs them with Discord.
         Loads plugins from app/plugins/ directory.
         This provides confirmation that the bot is running and where it's active.
         """
         logger.info(f"Logged in as {bot.user.name} ({bot.user.id})")
         logger.info(f"Connected to {len(bot.guilds)} servers")
+
+        # Register image commands cog
+        logger.info("Registering image commands...")
+        await bot.add_cog(ImageCommands(bot, config))
+
+        # Setup commands from config
+        await setup_commands(bot, config)
+
+        # Sync commands with Discord
+        logger.info("Syncing commands with Discord...")
+        await sync_commands(bot, config)
 
         # Load plugins
         logger.info("Loading plugins...")

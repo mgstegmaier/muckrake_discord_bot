@@ -1,14 +1,16 @@
 services:
-    discordbot.heck:
-      image: mgstegmaier/discordbot.heck:latest
-      container_name: discordbot.heck
-      restart: unless-stopped
-      environment:
-        - DISCORD_TOKEN=${bot_token}
-        - LOG_LEVEL=INFO
-        - BASE_IMAGE_URL=https://images.heckatron.xyz
-      volumes:
-        - /mnt/nvme2TB/docker/discordbot.heck/config:/app/config:ro\
+  discordbot.heck:
+    image: mgstegmaier/discordbot.heck:latest
+    container_name: discordbot.heck
+    restart: unless-stopped
+    environment:
+      - DISCORD_TOKEN=${bot_token}
+      - LOG_LEVEL=INFO
+      - BASE_IMAGE_URL=https://images.heckatron.xyz
+      - PUID=1002
+      - PGID=1004
+    volumes:
+      - /mnt/nvme2TB/docker/discordbot.heck/config:/app/config:ro
 networks:
   heck:
     name: heck

@@ -1,11 +1,11 @@
 # Multi-stage Dockerfile for Worldmind Discord Bot
 # Stage 1: Builder - Install dependencies in isolated virtual environment
-# Stage 2: Runtime - Minimal production image with non-root user
+# Stage 2: Runtime - Minimal production image with PUID/PGID support
 
 # ============================================================================
 # Stage 1: Builder
 # ============================================================================
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
 
 # Install build dependencies
 RUN apt-get update && \
@@ -29,15 +29,18 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # ============================================================================
 # Stage 2: Runtime
 # ============================================================================
-FROM python:3.11-slim as runtime
+FROM python:3.11-slim AS runtime
 
 # Add metadata labels
 LABEL maintainer="worldmind-bot"
 LABEL description="Worldmind Discord Bot - Multi-server bot with role-based access control"
-LABEL version="1.0"
+LABEL version="1.1"
 
-# Create non-root user (UID 1000)
-RUN useradd --create-home --uid 1000 --shell /bin/bash botuser
+# Install gosu for stepping down from root to specified user
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gosu && \
+    rm -rf /var/lib/apt/lists/* && \
+    gosu nobody true
 
 # Copy virtual environment from builder stage
 COPY --from=builder /opt/venv /opt/venv
@@ -51,17 +54,16 @@ WORKDIR /app
 # Copy application files (excludes tests, docs, etc. per .dockerignore)
 COPY app/ /app/app/
 
-# Change ownership to non-root user
-RUN chown -R botuser:botuser /app
-
-# Switch to non-root user
-USER botuser
+# Copy entrypoint script
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Set Python to run in unbuffered mode for better logging
 ENV PYTHONUNBUFFERED=1
 
-# Expose health check port (configurable via env var)
-EXPOSE 8080
+# Default PUID/PGID (can be overridden at runtime)
+ENV PUID=1000
+ENV PGID=1000
 
-# Set entrypoint to run the bot
-ENTRYPOINT ["python", "-m", "app.bot"]
+# Set entrypoint
+ENTRYPOINT ["/entrypoint.sh"]

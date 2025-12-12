@@ -98,7 +98,9 @@ class ImageCommands(commands.Cog):
         # Get image data
         image_data = server_config.images[image_key]
         title = image_data["title"]
-        image_url = self.config.base_image_url + image_data["url"]
+        # Ensure proper URL construction with slash separator
+        base_url = self.config.base_image_url.rstrip('/')
+        image_url = f"{base_url}/{image_data['url']}"
 
         # Create embed with image
         embed = discord.Embed(title=title)
