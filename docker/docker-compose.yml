@@ -1,17 +1,15 @@
 services:
-  worldmind-bot:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    container_name: worldmind-bot
-    restart: unless-stopped
-    env_file:
-      - ../config/.env
-    volumes:
-      - ../config:/app/config:ro
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-        reservations:
-          memory: 64M
+    discordbot.heck:
+      image: mgstegmaier/discordbot.heck:latest
+      container_name: discordbot.heck
+      restart: unless-stopped
+      environment:
+        - DISCORD_TOKEN=MTQ0ODc4NDc2Njk3NDU2MjQ3Ng.GowQTp.cqxwluF-eKgnpVez8UphQE-xHzgBysEas2z-pQ
+        - LOG_LEVEL=INFO
+        - BASE_IMAGE_URL=https://images.heckatron.xyz
+      volumes:
+        - /mnt/nvme2TB/docker/discordbot.heck/config:/app/config:ro\
+networks:
+  heck:
+    name: heck
+    external: true
